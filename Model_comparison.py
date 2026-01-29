@@ -34,14 +34,26 @@ param_grid_xgb = {
     "model__learning_rate": np.arange(0.25, 0.50, 0.05),
 }
 
-def get_columns_by_dtype(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
-    num_cols = df.select_dtypes(include=['int', 'float']).columns.tolist()
-    nan_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+def get_columns_by_dtype(dataset: pd.DataFrame) -> Tuple[List[str], List[str]]:
+    '''
+    Возвращает списки столбцов разделенных по типам данных
+    '''
+    numeric = ['int', 'int32', 'int64', 'float', 'float32', 'float64']
+    categories = ['object', 'category', 'bool']
+    num_cols = dataset.select_dtypes(include=numeric).columns.tolist()
+    nan_cols = dataset.select_dtypes(include=categories).columns.tolist()
     return num_cols, nan_cols
 
 def best_model_search(features: pd.DataFrame, target: pd.Series, model,  
-        search_params: dict, cols: Tuple[list, list]) -> GridSearchCV:
+        search_params: dict, cols: Tuple[List[str], List[str]]) -> GridSearchCV:
+    '''
+    Полный цикл подбора гиперпараметров модели с помощью GridSearchCV(). 
+    Подбор совершается для модели model по паратрам search_params
 
+    model: любая модель, для которой возможен подбор параметров с GridSearchCV()
+    search_params: возможные параметры модели. Записываются с префиксом <model__> 
+    cols: кортеж столбцов по типам данных 
+    '''
     # Анализ дисбаланса классов
     print('='*50)
     print(f"Распределение классов:")
@@ -82,12 +94,14 @@ def best_model_search(features: pd.DataFrame, target: pd.Series, model,
         ('categorical', pipe_cat, nan_cols)
     ])
 
+    # Финальный пайплайн
     final_pipe = Pipeline([
         ('prep', col_transformer),
         ('feature_selection', selector), 
         ('model', model)
     ])
 
+    # Подбор гиперпараметров
     grid_search = GridSearchCV(
         final_pipe, 
         search_params, 
@@ -128,26 +142,33 @@ def best_model_search(features: pd.DataFrame, target: pd.Series, model,
 
 
 
-def best_features(model: GridSearchCV) -> None:
+def best_features(model: GridSearchCV, cols) -> None:
+    '''
+    Выводит лучшие параметры в порядке убывания значимости 
+    '''
+    # Важность каждого параметра
     importances = model.named_steps['model'].feature_importances_
 
+    # Не нулевые параметры
     features_ = model.named_steps['feature_selection']
     collect_mask = features_.get_support()
 
+    # Названия столбцов после обработки 
     preproc = model.named_steps['prep']
     cat_e = preproc.named_transformers_['categorical'].named_steps['encoder']
     cat_f = cat_e.get_feature_names_out().tolist()
-
+    
     num_s = preproc.named_transformers_['numeric'].named_steps['scaler']
     num_f = num_s.get_feature_names_out().tolist()
 
     all_f = num_f + cat_f
     selected_f = np.array(all_f)[collect_mask].tolist()
-
+    
+    # Вывод значимости каждого параметра
     print(pd.DataFrame({
         'Признаки': selected_f,
-        'Важность': importances
-    }).sort_values('Важность', ascending=False))
+        'Значимость': importances
+    }).sort_values('Значимость', ascending=False))
 
 
 X = df.drop(columns='HeartDisease')
@@ -164,6 +185,6 @@ for model in dict_of_models.keys():
         search_params=dict_of_models[model],
         cols=columns
     )
-    best_features(best_model)
+    best_features(best_model, columns)
     best_of_the_bests.append(best_model)
 joblib.dump(best_of_the_bests, 'best_model.pkl')
