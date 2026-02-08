@@ -2,3 +2,4 @@ heart.csv
 cf/
 __pycache__/
 .ipynb_checkpoints/
+best_model.pkl

@@ -9,30 +9,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import GridSearchCV, train_test_split
-from sklearn.linear_model import LogisticRegression, Lasso
+from sklearn.linear_model import Lasso
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, confusion_matrix
 from sklearn.feature_selection import SelectFromModel
-from xgboost import XGBClassifier
 import warnings
 warnings.filterwarnings("ignore")
-
-# Загрузка и подготовка данных
-df = pd.read_csv('heart.csv')
-
-# Параметры для GridSearch
-param_grid_rf = {
-    'model__n_estimators': [100, 200, 300],
-    'model__max_depth': [10, 20, 30, None],
-    'model__min_samples_split': [2, 5, 10],
-    'model__min_samples_leaf': [1, 2, 4],
-    'model__max_features': ['sqrt', 'log2', 0.5]
-}
-
-param_grid_xgb = {
-    "model__max_depth": [3, 4, 5, 6],
-    "model__n_estimators": range(20, 70, 10),
-    "model__learning_rate": np.arange(0.25, 0.50, 0.05),
-}
 
 def get_columns_by_dtype(dataset: pd.DataFrame) -> Tuple[List[str], List[str]]:
     '''
@@ -140,8 +121,6 @@ def best_model_search(features: pd.DataFrame, target: pd.Series, model,
 
     return best_model
 
-
-
 def best_features(model: GridSearchCV, cols) -> None:
     '''
     Выводит лучшие параметры в порядке убывания значимости 
@@ -169,22 +148,3 @@ def best_features(model: GridSearchCV, cols) -> None:
         'Признаки': selected_f,
         'Значимость': importances
     }).sort_values('Значимость', ascending=False))
-
-
-X = df.drop(columns='HeartDisease')
-y = df['HeartDisease']
-columns = get_columns_by_dtype(X)
-best_of_the_bests = []
-dict_of_models = {XGBClassifier(): param_grid_xgb, RandomForestClassifier(): param_grid_rf}
-
-for model in dict_of_models.keys():
-    best_model = best_model_search(
-        features=X, 
-        target=y,
-        model=model, 
-        search_params=dict_of_models[model],
-        cols=columns
-    )
-    best_features(best_model, columns)
-    best_of_the_bests.append(best_model)
-joblib.dump(best_of_the_bests, 'best_model.pkl')
